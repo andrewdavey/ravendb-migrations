@@ -1,15 +1,15 @@
 ﻿using System;
 
-namespace RavenDB.Migrations
+namespace Raven.Migrations
 {
     [AttributeUsage(AttributeTargets.Class)]
     public class MigrationAttribute : Attribute
     {
-        public MigrationAttribute(int version)
+        public MigrationAttribute(long version)
         {
             Version = version;
         }
 
-        public int Version { get; private set; }
+        public long Version { get; private set; }
     }
 }
