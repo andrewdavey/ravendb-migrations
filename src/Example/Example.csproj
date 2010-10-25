@@ -2,18 +2,21 @@
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{1986D791-43D8-41EC-ABC8-06CA30B5710B}</ProjectGuid>
+    <ProjectGuid>{EDEDF5B3-3CD7-4F41-8F7B-911BB5D786D5}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Raven.Migrations</RootNamespace>
-    <AssemblyName>Raven.Migrations</AssemblyName>
+    <RootNamespace>Example</RootNamespace>
+    <AssemblyName>Example</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <TargetFrameworkProfile>
+    </TargetFrameworkProfile>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
+    <PlatformTarget>x86</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -22,13 +25,17 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
+    <PlatformTarget>x86</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Esent.Interop">
@@ -43,8 +50,6 @@
     <Reference Include="Lucene.Net">
       <HintPath>..\..\lib\Lucene.Net.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.Build.Framework" />
-    <Reference Include="Microsoft.Build.Utilities.v4.0" />
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\..\lib\Newtonsoft.Json.dll</HintPath>
     </Reference>
@@ -53,6 +58,9 @@
     </Reference>
     <Reference Include="Raven.Database">
       <HintPath>..\..\lib\Raven.Database.dll</HintPath>
+    </Reference>
+    <Reference Include="Raven.Munin">
+      <HintPath>..\..\lib\Raven.Munin.dll</HintPath>
     </Reference>
     <Reference Include="Raven.Storage.Esent">
       <HintPath>..\..\lib\Raven.Storage.Esent.dll</HintPath>
@@ -65,7 +73,6 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Transactions" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -73,22 +80,28 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DocumentStoreExtensions.cs" />
-    <Compile Include="IMigration.cs" />
-    <Compile Include="Migration.cs" />
-    <Compile Include="MigrationAttribute.cs" />
-    <Compile Include="MigrationInfo.cs" />
-    <Compile Include="Migrator.cs" />
-    <Compile Include="MSBuild\Migrate.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="_001_AddAdminUser.cs" />
+    <Compile Include="_002_AddRoleToAdmin.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Raven.Migrations.targets">
-      <SubType>Designer</SubType>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <ProjectReference Include="..\Raven.Migrations\Raven.Migrations.csproj">
+      <Project>{1986D791-43D8-41EC-ABC8-06CA30B5710B}</Project>
+      <Name>Raven.Migrations</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <RavenMigrationsPath>..\Raven.Migrations\bin\debug</RavenMigrationsPath>
+  </PropertyGroup>
+  <Import Project="..\Raven.Migrations\Raven.Migrations.targets" />
+  <Target Name="Migrate" DependsOnTargets="Build">
+    <CreateProperty Value="-1" Condition="'$(SchemaVersion)'==''">
+      <Output TaskParameter="Value" PropertyName="SchemaVersion" />
+    </CreateProperty>
+    <Message Text="RavenMigrationsPath = $(RavenMigrationsPath)" />
+    <Migrate ConnectionString="memory = true" SchemaVersion="$(SchemaVersion)" Migrations="$(OutputPath)Example.dll" />
+  </Target>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

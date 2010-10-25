@@ -1,105 +1,107 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Reflection;
-using System.Text.RegularExpressions;
-using System.Transactions;
-using Raven.Client.Document;
 using Raven.Client;
 
 namespace Raven.Migrations
 {
     public class Migrator
     {
-        public void Migrate(IDocumentStore store, Assembly assemblyContainingMigrations, int toVersion = -1)
+        public void Migrate(IDocumentStore store, Assembly assemblyContainingMigrations, long toVersion = -1)
         {
-            store.Initialize();
-
-            var appliedMigrations = GetAppliedMigrations(store);
-            var appliedVersions = new HashSet<long>(appliedMigrations.Select(m => m.Version));
-            var currentMaxVersion = appliedVersions.Count == 0 ? 0 : appliedVersions.Max();
-            var migrationTypes = GetMigrationTypes(assemblyContainingMigrations);
-
-            IEnumerable<MigrationInfo> migrationsToRun;
-            bool up;
-            if (toVersion < 0)
+            if (toVersion < 0) toVersion = long.MaxValue;
+            using (var session = store.OpenSession())
             {
-                up = true;
-                var filter = UpToMaxVersionFilter(appliedVersions);
-                migrationsToRun =
-                    from t in migrationTypes
-                    where filter(t.Key)
-                    select new MigrationInfo
-                    {
-                        Version = t.Key,
-                        Migration = (IMigration)Activator.CreateInstance(t.Value)
-                    };
-
-            }
-            else if (toVersion > currentMaxVersion)
-            {
-                up = true;
-                var filter = UpToVersionFilter(toVersion, appliedVersions);
-                migrationsToRun =
-                    from t in migrationTypes
-                    where filter(t.Key)
-                    select new MigrationInfo
-                    {
-                        Version = t.Key,
-                        Migration = (IMigration)Activator.CreateInstance(t.Value)
-                    };
-            }
-            else
-            {
-                up = false;
-                var filter = DownToVersionFilter(toVersion, appliedVersions);
-                migrationsToRun = appliedMigrations.Where(m => filter(m.Version)).ToArray();
-                foreach (var m in migrationsToRun)
+                var txId = Guid.NewGuid();
+                session.Advanced.DatabaseCommands.PromoteTransaction(txId);
+                try
                 {
-                    m.Migration = (IMigration)Activator.CreateInstance(migrationTypes[m.Version]);
-                }
-            }
+                    var appliedMigrations = GetAppliedMigrations(store);
+                    var appliedVersions = new HashSet<long>(appliedMigrations.Select(m => m.Version));
+                    var currentMaxVersion = appliedVersions.Count == 0 ? 0 : appliedVersions.Max();
+                    var migrationTypes = GetMigrationTypes(assemblyContainingMigrations);
 
-            foreach (var item in migrationsToRun)
-            {
-                if (up)
-                {
-                    item.Migration.Up(store);
-                    using (var session = store.OpenSession())
+                    if (toVersion > currentMaxVersion)
                     {
-                        session.Store(item);
-                        session.SaveChanges();
+                        MigrateUpTo(toVersion, appliedVersions, migrationTypes, session);
                     }
+                    else
+                    {
+                        MigrateDownTo(toVersion, appliedMigrations, appliedVersions, migrationTypes, session);
+                    }
+
+                    session.SaveChanges();
+                    session.Advanced.DatabaseCommands.Commit(txId);
                 }
-                else
+                catch
                 {
-                    item.Migration.Down(store);
-                    store.DatabaseCommands.Delete(item.Id, null);
+                    session.Advanced.DatabaseCommands.Rollback(txId);
+                    throw;
                 }
             }
         }
 
-        Func<long, bool> UpToVersionFilter(int toVersion, ISet<long> appliedVersions)
+        void MigrateUpTo(long version, ISet<long> appliedVersions, IDictionary<long, Type> migrationTypes, IDocumentSession session)
+        {
+            var filter = UpToVersionFilter(version, appliedVersions);
+            var migrationsToRun =
+                from t in migrationTypes
+                where filter(t.Key)
+                orderby t.Key
+                select new MigrationInfo
+                {
+                    Id = "migrationinfos/" + t.Key,
+                    Version = t.Key,
+                    Migration = (IMigration)Activator.CreateInstance(t.Value)
+                };
+
+            foreach (var item in migrationsToRun)
+            {
+                item.Migration.Up(session);
+            }
+            foreach (var item in migrationsToRun)
+            {
+                session.Store(item);
+            }
+        }
+
+        void MigrateDownTo(long version, IEnumerable<MigrationInfo> appliedMigrations, ISet<long> appliedVersions, IDictionary<long, Type> migrationTypes, IDocumentSession session)
+        {
+            var filter = DownToVersionFilter(version, appliedVersions);
+            var migrationsToRun = appliedMigrations.Where(m => filter(m.Version)).OrderByDescending(m => m.Version).ToArray();
+            foreach (var m in migrationsToRun)
+            {
+                m.Migration = (IMigration)Activator.CreateInstance(migrationTypes[m.Version]);
+            }
+            foreach (var item in migrationsToRun)
+            {
+                item.Migration.Down(session);
+            }
+            foreach (var item in migrationsToRun)
+            {
+                session.Advanced.DatabaseCommands.Delete(item.Id, null);
+            }
+        }
+
+        Func<long, bool> UpToVersionFilter(long toVersion, ISet<long> appliedVersions)
         {
             return v => !appliedVersions.Contains(v) && v <= toVersion;
         }
 
-        Func<long, bool> DownToVersionFilter(int toVersion, ISet<long> appliedVersions)
+        Func<long, bool> DownToVersionFilter(long toVersion, ISet<long> appliedVersions)
         {
             return v => appliedVersions.Contains(v) && v > toVersion;
-        }
-
-        Func<long, bool> UpToMaxVersionFilter(ISet<long> appliedVersions)
-        {
-            return v => !appliedVersions.Contains(v);
         }
 
         IEnumerable<MigrationInfo> GetAppliedMigrations(IDocumentStore store)
         {
             using (var session = store.OpenSession())
             {
-                return session.Advanced.LuceneQuery<MigrationInfo>().WaitForNonStaleResults().ToArray();
+                return session.Advanced
+                    .LuceneQuery<MigrationInfo>()
+                    .WaitForNonStaleResults()
+                    .ToArray();
             }
         }
 
@@ -124,60 +126,6 @@ namespace Raven.Migrations
             return migrationTypes;
         }
 
-        // Copied (and tweaked a bit) from RavenDB source: DocumentStore.cs
-        static readonly Regex connectionStringRegex = new Regex(@"(\w+) \s* = \s* (.*)",
-            RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace);
-        static readonly Regex connectionStringArgumentsSplitterRegex = new Regex(@"; (?=\s* \w+ \s* =)",
-            RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace);
-
-        void Configure(DocumentStore store, string connectionString)
-        {
-            // Copied (and tweaked a bit) from RavenDB source: DocumentStore.cs
-            string user = null;
-            string pass = null;
-            var strings = connectionStringArgumentsSplitterRegex.Split(connectionString);
-            foreach (var arg in strings)
-            {
-                var match = connectionStringRegex.Match(arg);
-                if (match.Success == false)
-                    throw new ArgumentException("Connection string could not be parsed");
-                switch (match.Groups[1].Value.ToLower())
-                {
-                    case "memory":
-                        bool result;
-                        if (bool.TryParse(match.Groups[2].Value, out result) == false)
-                            throw new ArgumentException("Could not understand memory setting: " +
-                                match.Groups[2].Value);
-                        store.RunInMemory = result;
-                        break;
-                    case "datadir":
-                        store.DataDirectory = match.Groups[2].Value.Trim();
-                        break;
-                    case "resourcemanagerid":
-                        store.ResourceManagerId = new Guid(match.Groups[2].Value.Trim());
-                        break;
-                    case "url":
-                        store.Url = match.Groups[2].Value.Trim();
-                        break;
-
-                    case "user":
-                        user = match.Groups[2].Value.Trim();
-                        break;
-                    case "password":
-                        pass = match.Groups[2].Value.Trim();
-                        break;
-
-                    default:
-                        throw new ArgumentException("Connection string could not be parsed, unknown option: " + match.Groups[1].Value);
-                }
-            }
-
-            if (user == null && pass == null)
-                return;
-
-            if (user == null || pass == null)
-                throw new ArgumentException("User and Password must both be specified in the connection string");
-            store.Credentials = new NetworkCredential(user, pass);
-        }
+       
     }
 }

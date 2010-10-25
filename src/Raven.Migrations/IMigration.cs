@@ -4,7 +4,7 @@ namespace Raven.Migrations
 {
     public interface IMigration
     {
-        void Up(IDocumentStore store);
-        void Down(IDocumentStore store);
+        void Up(IDocumentSession session);
+        void Down(IDocumentSession session);
     }
 }
