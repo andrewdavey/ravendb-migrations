@@ -11,7 +11,7 @@ namespace Raven.Migrations
         public void Migrate(IDocumentStore store, Assembly assemblyContainingMigrations, long toVersion = -1)
         {
             if (toVersion < 0) toVersion = long.MaxValue;
-            using (var session = store.OpenSession())
+            using (var session = new IndexSavingDocumentSession(store.OpenSession()))
             {
                 var txId = Guid.NewGuid();
                 session.Advanced.DatabaseCommands.PromoteTransaction(txId);
@@ -36,6 +36,7 @@ namespace Raven.Migrations
                 }
                 catch
                 {
+                    session.RestoreIndexes();
                     session.Advanced.DatabaseCommands.Rollback(txId);
                     throw;
                 }
