@@ -8,7 +8,7 @@ namespace Example
     {
         public override void Up(IDocumentSession session)
         {
-            session.Store(new { Id = "users/1", Name = "Admin" });
+            session.Store(new { Id = "users/1", Name = "Admin" }, "Users");
             session.SaveChanges();
         }
 

@@ -73,6 +73,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DocumentSessionExtensions.cs" />
     <Compile Include="IndexSavingDatabaseCommands.cs" />
     <Compile Include="DocumentStoreExtensions.cs" />
     <Compile Include="IMigration.cs" />

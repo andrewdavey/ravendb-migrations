@@ -131,6 +131,20 @@ namespace Raven.Migrations
             });
         }
 
+        [Fact]
+        public void Migration_AddBookAsAnonymousType_CanQueryByType()
+        {
+            migrator.Migrate(store, new FakeAssembly(typeof(AddBookAsAnonymousType)));
+            WaitForIndexing();
+
+            using (var session = store.OpenSession())
+            {
+                var book = session.Query<Book>().First();
+                Assert.Equal("My Book", book.Title);
+                Assert.Equal("John Smith", book.Author);
+            }
+        }
+
         void WaitForIndexing()
         {
             Assert.Equal(0, store.DocumentDatabase.Statistics.ApproximateTaskCount);
@@ -223,4 +237,18 @@ namespace Raven.Migrations
         }
     }
 
+    [Migration(4)]
+    public class AddBookAsAnonymousType : Migration
+    {
+        public override void Up(IDocumentSession session)
+        {
+            session.Store(new { Id = "books/1", Title = "My Book", Author = "John Smith" }, "Books");
+            session.SaveChanges();
+        }
+
+        public override void Down(IDocumentSession session)
+        {
+            session.Advanced.DatabaseCommands.Delete("books/1", null);
+        }
+    }
 }
