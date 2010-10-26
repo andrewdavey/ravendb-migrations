@@ -1,7 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 using Raven.Client.Client;
+using Raven.Client.Indexes;
+using Raven.Database;
+using Raven.Database.Data;
 using Raven.Database.Indexing;
+using Raven.Database.Json;
 
 namespace Raven.Migrations
 {
@@ -43,7 +48,7 @@ namespace Raven.Migrations
             }
         }
 
-        public Database.BatchResult[] Batch(Database.Data.ICommandData[] commandDatas)
+        public BatchResult[] Batch(ICommandData[] commandDatas)
         {
             return inner.Batch(commandDatas);
         }
@@ -63,7 +68,7 @@ namespace Raven.Migrations
             inner.DeleteAttachment(key, etag);
         }
 
-        public void DeleteByIndex(string indexName, Database.Data.IndexQuery queryToDelete, bool allowStale)
+        public void DeleteByIndex(string indexName, IndexQuery queryToDelete, bool allowStale)
         {
             inner.DeleteByIndex(indexName, queryToDelete, allowStale);
         }
@@ -121,17 +126,17 @@ namespace Raven.Migrations
             return inner.PromoteTransaction(fromTxId);
         }
 
-        public Database.PutResult Put(string key, Guid? etag, Newtonsoft.Json.Linq.JObject document, Newtonsoft.Json.Linq.JObject metadata)
+        public Database.PutResult Put(string key, Guid? etag, JObject document, JObject metadata)
         {
             return inner.Put(key, etag, document, metadata);
         }
 
-        public void PutAttachment(string key, Guid? etag, byte[] data, Newtonsoft.Json.Linq.JObject metadata)
+        public void PutAttachment(string key, Guid? etag, byte[] data, JObject metadata)
         {
             inner.PutAttachment(key, etag, data, metadata);
         }
 
-        public string PutIndex<TDocument, TReduceResult>(string name, Client.Indexes.IndexDefinition<TDocument, TReduceResult> indexDef, bool overwrite)
+        public string PutIndex<TDocument, TReduceResult>(string name, IndexDefinition<TDocument, TReduceResult> indexDef, bool overwrite)
         {
             SaveUnseenIndex(name);
             return inner.PutIndex<TDocument, TReduceResult>(name, indexDef, overwrite);
@@ -143,7 +148,7 @@ namespace Raven.Migrations
             return inner.PutIndex(name, indexDef, overwrite);
         }
 
-        public string PutIndex<TDocument, TReduceResult>(string name, Client.Indexes.IndexDefinition<TDocument, TReduceResult> indexDef)
+        public string PutIndex<TDocument, TReduceResult>(string name, IndexDefinition<TDocument, TReduceResult> indexDef)
         {
             SaveUnseenIndex(name);
             return inner.PutIndex<TDocument, TReduceResult>(name, indexDef);
@@ -155,7 +160,7 @@ namespace Raven.Migrations
             return inner.PutIndex(name, indexDef);
         }
 
-        public Database.Data.QueryResult Query(string index, Database.Data.IndexQuery query, string[] includes)
+        public Database.Data.QueryResult Query(string index, IndexQuery query, string[] includes)
         {
             return inner.Query(index, query, includes);
         }
@@ -180,7 +185,7 @@ namespace Raven.Migrations
             get { return inner.SupportsPromotableTransactions; }
         }
 
-        public void UpdateByIndex(string indexName, Database.Data.IndexQuery queryToUpdate, Database.Json.PatchRequest[] patchRequests, bool allowStale)
+        public void UpdateByIndex(string indexName, IndexQuery queryToUpdate, PatchRequest[] patchRequests, bool allowStale)
         {
             inner.UpdateByIndex(indexName, queryToUpdate, patchRequests, allowStale);
         }

@@ -57,7 +57,7 @@ namespace Raven.Migrations
             store.Credentials = new NetworkCredential(user, pass);
         }
 
-        // Copied (and tweaked a bit) from RavenDB source: DocumentStore.cs
+        // Copied from RavenDB source: DocumentStore.cs
         static readonly Regex connectionStringRegex = new Regex(@"(\w+) \s* = \s* (.*)",
             RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace);
 

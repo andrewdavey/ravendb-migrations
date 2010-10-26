@@ -77,6 +77,7 @@
     <Compile Include="DocumentStoreExtensions.cs" />
     <Compile Include="IMigration.cs" />
     <Compile Include="IndexSavingDocumentSession.cs" />
+    <Compile Include="IndexSavingSyncAdvancedSessionOperation.cs" />
     <Compile Include="Migration.cs" />
     <Compile Include="MigrationAttribute.cs" />
     <Compile Include="MigrationInfo.cs" />
