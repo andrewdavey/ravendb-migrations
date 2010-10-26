@@ -2,6 +2,7 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
         <RavenMigrationsLib>$(RavenMigrationsPath)\Raven.Migrations.dll</RavenMigrationsLib>
+        <ToVersion Condition=" '$(ToVersion)' == '' ">-1</ToVersion>
     </PropertyGroup>
 
     <UsingTask AssemblyFile="$(RavenMigrationsLib)"

@@ -91,17 +91,20 @@
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+
+
   <PropertyGroup>
     <RavenMigrationsPath>..\Raven.Migrations\bin\debug</RavenMigrationsPath>
   </PropertyGroup>
+
   <Import Project="..\Raven.Migrations\Raven.Migrations.targets" />
+
   <Target Name="Migrate" DependsOnTargets="Build">
-    <CreateProperty Value="-1" Condition="'$(SchemaVersion)'==''">
-      <Output TaskParameter="Value" PropertyName="SchemaVersion" />
-    </CreateProperty>
     <Message Text="RavenMigrationsPath = $(RavenMigrationsPath)" />
-    <Migrate ConnectionString="memory = true" SchemaVersion="$(SchemaVersion)" Migrations="$(OutputPath)Example.dll" />
+    <Migrate ConnectionString="memory = true" ToVersion="$(ToVersion)" Migrations="$(OutputPath)Example.dll" />
   </Target>
+
+
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

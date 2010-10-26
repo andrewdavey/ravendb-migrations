@@ -9,7 +9,7 @@ namespace Raven.Migrations.MSBuild
     {
         public Migrate()
         {
-            SchemaVersion = -1;
+            ToVersion = -1;
         }
 
         [Required]
@@ -18,7 +18,7 @@ namespace Raven.Migrations.MSBuild
         [Required]
         public ITaskItem[] Migrations { get; set; }
         
-        public long SchemaVersion { get; set; }
+        public long ToVersion { get; set; }
 
         public override bool Execute()
         {
@@ -31,10 +31,18 @@ namespace Raven.Migrations.MSBuild
                 foreach (var item in Migrations)
                 {
                     var assembly = Assembly.LoadFrom(item.GetMetadata("FullPath"));
-                    migrator.Migrate(store, assembly, SchemaVersion);
+                    migrator.Migrate(store, assembly, ToVersion);
                 }
             }
-            Log.LogMessage("Migrated to version " + SchemaVersion);
+
+            if (ToVersion > 0)
+            {
+                Log.LogMessage("Migrated to version " + ToVersion + ".");
+            }
+            else
+            {
+                Log.LogMessage("Migrated to maximum version.");
+            }
             return true;
         }
     }

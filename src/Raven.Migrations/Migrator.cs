@@ -10,7 +10,14 @@ namespace Raven.Migrations
     {
         public void Migrate(IDocumentStore store, Assembly assemblyContainingMigrations, long toVersion = -1)
         {
-            if (toVersion < 0) toVersion = long.MaxValue;
+            var migrationTypes = GetMigrationTypes(assemblyContainingMigrations);
+            
+            var toMax = toVersion < 0;
+
+            if (!toMax) EnsureCanMigrate(toVersion, migrationTypes, assemblyContainingMigrations);
+            if (migrationTypes.Count == 0) return;
+
+            if (toMax) toVersion = long.MaxValue;
             using (var session = new IndexSavingDocumentSession(store.OpenSession()))
             {
                 var txId = Guid.NewGuid();
@@ -20,8 +27,7 @@ namespace Raven.Migrations
                     var appliedMigrations = GetAppliedMigrations(store);
                     var appliedVersions = new HashSet<long>(appliedMigrations.Select(m => m.Version));
                     var currentMaxVersion = appliedVersions.Count == 0 ? 0 : appliedVersions.Max();
-                    var migrationTypes = GetMigrationTypes(assemblyContainingMigrations);
-
+                    
                     if (toVersion > currentMaxVersion)
                     {
                         MigrateUpTo(toVersion, appliedVersions, migrationTypes, session);
@@ -43,6 +49,20 @@ namespace Raven.Migrations
             }
         }
 
+        void EnsureCanMigrate(long toVersion, Dictionary<long, Type> migrationTypes, Assembly assemblyContainingMigrations)
+        {
+            if (migrationTypes.Count == 0)
+            {
+                throw new ArgumentException("No migrations defined in assembly " + assemblyContainingMigrations.FullName + ".");
+            }
+
+            if (toVersion > 0 && !migrationTypes.ContainsKey(toVersion))
+            {
+                var availableMaxVersion = migrationTypes.Max(t => t.Key);
+                throw new ArgumentException("Migration not defined for version " + toVersion + ". Omit the ToVersion parameter to migrate to the maximum version. The maximum migration version available is " + availableMaxVersion + ".");
+            }
+        }
+        
         void MigrateUpTo(long version, ISet<long> appliedVersions, IDictionary<long, Type> migrationTypes, IDocumentSession session)
         {
             var filter = UpToVersionFilter(version, appliedVersions);
@@ -50,20 +70,15 @@ namespace Raven.Migrations
                 from t in migrationTypes
                 where filter(t.Key)
                 orderby t.Key
-                select new MigrationInfo
-                {
-                    Id = "migrationinfos/" + t.Key,
-                    Version = t.Key,
-                    Migration = (IMigration)Activator.CreateInstance(t.Value)
-                };
+                select MigrationInfo.CreateNew(t.Key, t.Value);
 
-            foreach (var item in migrationsToRun)
+            foreach (var migrationInfo in migrationsToRun)
             {
-                item.Migration.Up(session);
+                migrationInfo.Migration.Up(session);
             }
-            foreach (var item in migrationsToRun)
+            foreach (var migrationInfo in migrationsToRun)
             {
-                session.Store(item);
+                session.Store(migrationInfo);
             }
         }
 
@@ -71,17 +86,14 @@ namespace Raven.Migrations
         {
             var filter = DownToVersionFilter(version, appliedVersions);
             var migrationsToRun = appliedMigrations.Where(m => filter(m.Version)).OrderByDescending(m => m.Version).ToArray();
-            foreach (var m in migrationsToRun)
+            foreach (var migrationInfo in migrationsToRun)
             {
-                m.Migration = (IMigration)Activator.CreateInstance(migrationTypes[m.Version]);
+                var migration = (IMigration)Activator.CreateInstance(migrationTypes[migrationInfo.Version]);
+                migration.Down(session);
             }
-            foreach (var item in migrationsToRun)
+            foreach (var migrationInfo in migrationsToRun)
             {
-                item.Migration.Down(session);
-            }
-            foreach (var item in migrationsToRun)
-            {
-                session.Advanced.DatabaseCommands.Delete(item.Id, null);
+                session.Advanced.DatabaseCommands.Delete(migrationInfo.Id, null);
             }
         }
 
@@ -110,7 +122,7 @@ namespace Raven.Migrations
         {
             var migrationMetadata =
                 from type in assemblyContainingMigrations.GetExportedTypes()
-                where typeof(IMigration).IsAssignableFrom(type)
+                where typeof(IMigration).IsAssignableFrom(type) && !type.IsAbstract && type.IsClass
                 let attr = (MigrationAttribute)type.GetCustomAttributes(typeof(MigrationAttribute), false).FirstOrDefault()
                 select new { type, attr };
 

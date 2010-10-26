@@ -79,6 +79,58 @@ namespace Raven.Migrations
             Assert.Null(store.DatabaseCommands.GetIndex("BooksByTitle"));
         }
 
+        [Fact]
+        public void Migrate_From1ToMigrationThatThrows_RollsbackTo1()
+        {
+            migrator.Migrate(store, new FakeAssembly(typeof(Migration1)));
+            WaitForIndexing();
+
+            try
+            {
+                migrator.Migrate(store, new FakeAssembly(typeof(MigrationThatThrows)));
+            }
+            catch
+            {
+            }
+            WaitForIndexing();
+
+            Assert.NotNull(store.DatabaseCommands.GetIndex("BooksByTitle"));
+            Assert.NotNull(store.DatabaseCommands.Get("migrationinfos/1"));
+        }
+
+        [Fact]
+        public void Migrate_NoMigrationsDefined_Throws()
+        {
+            Assert.Throws<ArgumentException>(delegate
+            {
+                migrator.Migrate(store, new FakeAssembly(), 1);
+            });
+        }
+
+        [Fact]
+        public void Migrate_ToMaxNoMigrationsDefined_DoesNothing()
+        {
+            migrator.Migrate(store, new FakeAssembly());
+        }
+
+        [Fact]
+        public void Migrate_ToVersionThatHasNoMigration_Throws()
+        {
+            Assert.Throws<ArgumentException>(delegate
+            {
+                migrator.Migrate(store, new FakeAssembly(typeof(Migration1)), 2);
+            });
+        }
+
+        [Fact]
+        public void Migrate_DownToVersionThatHasNoMigration_Throws()
+        {
+            Assert.Throws<ArgumentException>(delegate
+            {
+                migrator.Migrate(store, new FakeAssembly(typeof(Migration2)), 1);
+            });
+        }
+
         void WaitForIndexing()
         {
             Assert.Equal(0, store.DocumentDatabase.Statistics.ApproximateTaskCount);
@@ -103,6 +155,14 @@ namespace Raven.Migrations
         public override Type[] GetExportedTypes()
         {
             return Types;
+        }
+
+        public override string FullName
+        {
+            get
+            {
+                return "FakeAssembly";
+            }
         }
     }
 

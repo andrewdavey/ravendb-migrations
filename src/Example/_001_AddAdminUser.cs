@@ -17,4 +17,5 @@ namespace Example
             session.Advanced.DatabaseCommands.Delete("users/1", null);
         }
     }
+
 }
